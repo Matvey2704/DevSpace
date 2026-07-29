@@ -1,15 +1,36 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell, Menu, Plus, Search } from 'lucide-react'
+import { Bell, LogOut, Menu, Plus, Search } from 'lucide-react'
+
+type CurrentUser = {
+  id: string
+  email: string
+  name: string | null
+}
 
 export function Topbar({
   onMenu,
   onCreateProject,
+  user,
+  onLogout,
 }: {
   onMenu: () => void
   onCreateProject: () => void
+  user?: CurrentUser | null
+  onLogout?: () => void
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const displayName = user?.name || user?.email || 'Гость'
+  const initials = displayName
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6">
       <Button
@@ -43,17 +64,42 @@ export function Topbar({
           <Bell className="size-5" />
           <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background" />
         </Button>
-        <button
-          className="flex items-center gap-2 rounded-lg py-1 pr-2 pl-1 transition-colors hover:bg-muted"
-          aria-label="Profile menu"
-        >
-          <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
-            AK
-          </span>
-          <span className="hidden text-sm font-medium text-foreground lg:inline">
-            Alex Kade
-          </span>
-        </button>
+
+        <div className="relative">
+          <button
+            className="flex items-center gap-2 rounded-lg py-1 pr-2 pl-1 transition-colors hover:bg-muted"
+            aria-label="Profile menu"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+              {initials}
+            </span>
+            <span className="hidden text-sm font-medium text-foreground lg:inline">
+              {displayName}
+            </span>
+          </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-border bg-card p-1 shadow-lg">
+                <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+                  {user?.email}
+                </div>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onLogout?.()
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted"
+                >
+                  <LogOut className="size-4" />
+                  Выйти
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   )

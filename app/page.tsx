@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { projectById, tasks as initialTasks } from '@/lib/data'
 import { Sidebar, type NavKey } from '@/components/devspace/sidebar'
@@ -13,12 +14,49 @@ import { AllTasks } from '@/components/devspace/screens/all-tasks'
 import { Analytics } from '@/components/devspace/screens/analytics'
 import { Calendar as CalendarScreen } from '@/components/devspace/screens/calendar'
 
+type CurrentUser = {
+  id: string
+  email: string
+  name: string | null
+}
+
 export default function Page() {
+  const router = useRouter()
   const [nav, setNav] = useState<NavKey>('home')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
   const [mobileNav, setMobileNav] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [taskState, setTaskState] = useState(initialTasks)
+  const [user, setUser] = useState<CurrentUser | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function checkSession() {
+      const res = await fetch('/api/auth/me')
+      if (cancelled) return
+
+      if (!res.ok) {
+        router.replace('/login')
+        return
+      }
+
+      const data = await res.json()
+      setUser(data.user)
+      setCheckingAuth(false)
+    }
+
+    checkSession()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.replace('/login')
+  }
 
   function toggleTask(id: string) {
     setTaskState((prev) =>
@@ -69,6 +107,14 @@ export default function Page() {
     }
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="flex h-svh items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Загрузка…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-svh overflow-hidden bg-background">
       {/* Desktop sidebar */}
@@ -97,6 +143,8 @@ export default function Page() {
         <Topbar
           onMenu={() => setMobileNav(true)}
           onCreateProject={() => setCreateOpen(true)}
+          user={user}
+          onLogout={handleLogout}
         />
         <main className="scrollbar-thin flex-1 overflow-y-auto">
           {renderMain()}
