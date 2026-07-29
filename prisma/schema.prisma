@@ -1,13 +1,80 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum ProjectStatus {
+  planning
+  in_progress
+  paused
+  completed
+}
+
+enum TaskStatus {
+  ideas
+  planned
+  in_progress
+  review
+  completed
+}
+
+enum Priority {
+  high
+  medium
+  low
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projects Project[]
+
+  lastOpenedProjectId String?
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  short       String
+  description String
+  cover       String?
+  status      ProjectStatus @default(planning)
+  tech        String[]
+  accent      String?
+  currentTask String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tasks Task[]
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(ideas)
+  priority    Priority   @default(medium)
+  tags        String[]
+  deadline    DateTime?
+  estimate    String?
+  done        Boolean    @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
