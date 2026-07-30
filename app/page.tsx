@@ -14,21 +14,25 @@ import { AllTasks } from '@/components/devspace/screens/all-tasks'
 import { Analytics } from '@/components/devspace/screens/analytics'
 import { Calendar as CalendarScreen } from '@/components/devspace/screens/calendar'
 
+
 type CurrentUser = {
   id: string
   email: string
   name: string | null
+  lastOpenedProjectId: string | null
 }
 
 export default function Page() {
   const router = useRouter()
   const [nav, setNav] = useState<NavKey>('home')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
+  const openProject = openProjectId ? projectById(openProjectId) : null
   const [mobileNav, setMobileNav] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [taskState, setTaskState] = useState(initialTasks)
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [projectsVersion, setProjectsVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -73,7 +77,9 @@ export default function Page() {
     setOpenProjectId(null)
   }
 
-  const openProject = openProjectId ? projectById(openProjectId) : null
+  function handleProjectCreated() {
+    setProjectsVersion((v) => v + 1)
+  }
 
   function renderMain() {
     if (openProject) {
@@ -90,8 +96,10 @@ export default function Page() {
       case 'projects':
         return (
           <ProjectsLibrary
+            key={projectsVersion}
             onOpenProject={setOpenProjectId}
             onCreateProject={() => setCreateOpen(true)}
+            lastOpenedProjectId={user?.lastOpenedProjectId}
           />
         )
       case 'my-day':
@@ -151,7 +159,11 @@ export default function Page() {
         </main>
       </div>
 
-      <CreateProjectModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateProjectModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleProjectCreated}
+      />
     </div>
   )
 }

@@ -1,9 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { projects, type ProjectStatus } from '@/lib/data'
+import type { Project, ProjectStatus } from '@/lib/data'
+import {
+  fetchProjects,
+  markProjectOpened,
+  statusToUi,
+  formatRelativeTime,
+  type ApiProject,
+} from '@/lib/api-client'
 import { ProgressBar } from '../primitives'
 import { ProjectCard } from '../project-card'
 import { ArrowUpDown, Play, Plus, Search } from 'lucide-react'
@@ -16,21 +23,102 @@ const filters: { key: ProjectStatus | 'all'; label: string }[] = [
   { key: 'completed', label: 'Completed' },
 ]
 
+const sortOptions = [
+  { key: 'updated', label: 'Last updated' },
+  { key: 'name', label: 'Name' },
+  { key: 'progress', label: 'Progress' },
+] as const
+type SortKey = (typeof sortOptions)[number]['key']
+
+function toUiProject(p: ApiProject): Project {
+  return {
+    id: p.id,
+    name: p.name,
+    short: p.short,
+    description: p.description,
+    cover: p.cover ?? '',
+    status: statusToUi(p.status),
+    progress: p.progress,
+    tasksDone: p.tasksDone,
+    tasksTotal: p.tasksTotal,
+    tech: p.tech,
+    lastActivity: formatRelativeTime(p.updatedAt),
+    accent: p.accent ?? 'var(--primary)',
+    currentTask: p.currentTask ?? '',
+  }
+}
+
 export function ProjectsLibrary({
   onOpenProject,
   onCreateProject,
+  lastOpenedProjectId,
 }: {
   onOpenProject: (id: string) => void
   onCreateProject: () => void
+  lastOpenedProjectId?: string | null
 }) {
   const [filter, setFilter] = useState<ProjectStatus | 'all'>('all')
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SortKey>('updated')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const featured = projects[0]
-  const list = projects.filter((p) => {
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchProjects()
+      setProjects(data.map(toUiProject))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  function handleOpen(id: string) {
+    markProjectOpened(id)
+    onOpenProject(id)
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] items-center justify-center px-4 py-32">
+        <p className="text-sm text-muted-foreground">Loading projects…</p>
+      </div>
+    )
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col items-center justify-center px-4 py-32 text-center">
+        <p className="text-sm font-medium text-foreground">No projects yet</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Create your first project to get started.
+        </p>
+        <Button size="sm" className="mt-4" onClick={onCreateProject}>
+          <Plus className="size-4" />
+          Create Project
+        </Button>
+      </div>
+    )
+  }
+
+  const featured =
+    projects.find((p) => p.id === lastOpenedProjectId) ?? projects[0]
+
+  let list = projects.filter((p) => {
     const matchStatus = filter === 'all' || p.status === filter
     const matchQuery = p.name.toLowerCase().includes(query.toLowerCase())
     return matchStatus && matchQuery
+  })
+
+  list = [...list].sort((a, b) => {
+    if (sort === 'name') return a.name.localeCompare(b.name)
+    if (sort === 'progress') return b.progress - a.progress
+    return 0 // 'updated' — уже пришли отсортированными с сервера по updatedAt desc
   })
 
   return (
@@ -54,7 +142,7 @@ export function ProjectsLibrary({
         </div>
         <div className="group relative block w-full overflow-hidden rounded-3xl border border-border text-left">
           <button
-            onClick={() => onOpenProject(featured.id)}
+            onClick={() => handleOpen(featured.id)}
             aria-label={`Open ${featured.name}`}
             className="absolute inset-0 z-0"
           >
@@ -69,7 +157,11 @@ export function ProjectsLibrary({
           <div className="pointer-events-none relative z-10 flex flex-col gap-5 p-6 md:p-10 lg:max-w-2xl">
             <div className="flex items-center gap-3">
               <span className="flex size-12 items-center justify-center rounded-xl border border-white/15 bg-black/40 text-base font-semibold text-white backdrop-blur-md">
-                AH
+                {featured.name
+                  .split(' ')
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join('')}
               </span>
               <div>
                 <h3 className="text-2xl font-semibold text-foreground">
@@ -96,17 +188,19 @@ export function ProjectsLibrary({
               <Button
                 size="lg"
                 className="shadow-sm"
-                onClick={() => onOpenProject(featured.id)}
+                onClick={() => handleOpen(featured.id)}
               >
                 <Play className="size-4" />
                 Continue
               </Button>
-              <div className="rounded-lg border border-border bg-card/70 px-3 py-2 text-xs backdrop-blur-md">
-                <span className="text-muted-foreground">Current task · </span>
-                <span className="font-medium text-foreground">
-                  {featured.currentTask}
-                </span>
-              </div>
+              {featured.currentTask && (
+                <div className="rounded-lg border border-border bg-card/70 px-3 py-2 text-xs backdrop-blur-md">
+                  <span className="text-muted-foreground">Current task · </span>
+                  <span className="font-medium text-foreground">
+                    {featured.currentTask}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -141,10 +235,43 @@ export function ProjectsLibrary({
                 </button>
               ))}
             </div>
-            <Button variant="outline" size="sm">
-              <ArrowUpDown className="size-3.5" />
-              Sort
-            </Button>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSortMenuOpen((v) => !v)}
+              >
+                <ArrowUpDown className="size-3.5" />
+                Sort
+              </Button>
+              {sortMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setSortMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-lg border border-border bg-card p-1 shadow-lg">
+                    {sortOptions.map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => {
+                          setSort(opt.key)
+                          setSortMenuOpen(false)
+                        }}
+                        className={cn(
+                          'flex w-full items-center rounded-md px-3 py-2 text-sm hover:bg-muted',
+                          sort === opt.key
+                            ? 'text-foreground font-medium'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -152,7 +279,7 @@ export function ProjectsLibrary({
         {list.length > 0 ? (
           <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {list.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} />
+              <ProjectCard key={p.id} project={p} onOpen={handleOpen} />
             ))}
           </div>
         ) : (

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { createProject, statusToApi, type ApiProject } from '@/lib/api-client'
 import { ImagePlus, X } from 'lucide-react'
 
 const templates = [
@@ -44,14 +45,68 @@ const inputCls =
 export function CreateProjectModal({
   open,
   onClose,
+  onCreated,
 }: {
   open: boolean
   onClose: () => void
+  onCreated?: (project: ApiProject) => void
 }) {
   const [template, setTemplate] = useState(templates[0])
   const [gradient, setGradient] = useState(gradients[0])
+  const [name, setName] = useState('')
+  const [short, setShort] = useState('')
+  const [status, setStatus] = useState<'Planning' | 'In Progress' | 'Paused' | 'Completed'>('Planning')
+  const [tech, setTech] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!open) return null
+
+  function reset() {
+    setName('')
+    setShort('')
+    setStatus('Planning')
+    setTech('')
+    setTemplate(templates[0])
+    setGradient(gradients[0])
+    setError(null)
+  }
+
+  async function handleCreate() {
+    if (!name.trim()) {
+      setError('Введите название проекта')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+
+    const statusMap = {
+      Planning: 'planning',
+      'In Progress': 'in_progress',
+      Paused: 'paused',
+      Completed: 'completed',
+    } as const
+
+    try {
+      const project = await createProject({
+        name: name.trim(),
+        short: short.trim(),
+        description: short.trim(),
+        status: statusMap[status],
+        tech: tech
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean),
+      })
+      onCreated?.(project)
+      reset()
+      onClose()
+    } catch {
+      setError('Не удалось создать проект, попробуй ещё раз')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div
@@ -118,7 +173,12 @@ export function CreateProjectModal({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Project name">
-              <input className={inputCls} placeholder="e.g. AutoHub" />
+              <input
+                className={inputCls}
+                placeholder="e.g. AutoHub"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </Field>
             <Field label="Project type">
               <input className={inputCls} defaultValue={template} readOnly />
@@ -130,12 +190,18 @@ export function CreateProjectModal({
               rows={2}
               className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30 focus:outline-none"
               placeholder="What are you building?"
+              value={short}
+              onChange={(e) => setShort(e.target.value)}
             />
           </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Status">
-              <select className={cn(inputCls, 'appearance-none')}>
+              <select
+                className={cn(inputCls, 'appearance-none')}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as typeof status)}
+              >
                 <option>Planning</option>
                 <option>In Progress</option>
                 <option>Paused</option>
@@ -143,7 +209,12 @@ export function CreateProjectModal({
               </select>
             </Field>
             <Field label="Technologies">
-              <input className={inputCls} placeholder="React, TypeScript…" />
+              <input
+                className={inputCls}
+                placeholder="React, TypeScript…"
+                value={tech}
+                onChange={(e) => setTech(e.target.value)}
+              />
             </Field>
             <Field label="Start date">
               <input type="date" className={inputCls} />
@@ -174,11 +245,15 @@ export function CreateProjectModal({
             </div>
           </div>
 
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
           <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={onClose}>Create Project</Button>
+            <Button onClick={handleCreate} disabled={submitting}>
+              {submitting ? 'Creating…' : 'Create Project'}
+            </Button>
           </div>
         </div>
       </div>
