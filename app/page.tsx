@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { projectById, tasks as initialTasks } from '@/lib/data'
+import { tasks as initialTasks } from '@/lib/data'
 import { Sidebar, type NavKey } from '@/components/devspace/sidebar'
 import { Topbar } from '@/components/devspace/topbar'
 import { CreateProjectModal } from '@/components/devspace/create-project-modal'
@@ -26,7 +26,6 @@ export default function Page() {
   const router = useRouter()
   const [nav, setNav] = useState<NavKey>('home')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
-  const openProject = openProjectId ? projectById(openProjectId) : null
   const [mobileNav, setMobileNav] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [taskState, setTaskState] = useState(initialTasks)
@@ -82,10 +81,10 @@ export default function Page() {
   }
 
   function renderMain() {
-    if (openProject) {
+    if (openProjectId) {
       return (
         <ProjectWorkspace
-          project={openProject}
+          projectId={openProjectId}
           onBack={() => setOpenProjectId(null)}
           onToggleTask={toggleTask}
         />

@@ -40,7 +40,14 @@ export async function GET(
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
 
-  return NextResponse.json({ project: withProgress(project) });
+  const activeTasks = project.tasks.filter((t) => !t.deletedAt);
+  const tasksTotal = activeTasks.length;
+  const tasksDone = activeTasks.filter((t) => t.done).length;
+  const progress = tasksTotal === 0 ? 0 : Math.round((tasksDone / tasksTotal) * 100);
+
+  return NextResponse.json({
+    project: { ...project, tasksTotal, tasksDone, progress },
+  });
 }
 
 export async function PATCH(

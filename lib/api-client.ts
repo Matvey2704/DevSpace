@@ -100,3 +100,26 @@ export function formatRelativeTime(iso: string): string {
   if (weeks === 1) return "Updated 1 week ago";
   return `Updated ${weeks} weeks ago`;
 }
+export type ApiTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: "ideas" | "planned" | "in_progress" | "review" | "completed";
+  priority: "high" | "medium" | "low";
+  tags: string[];
+  deadline: string | null;
+  estimate: string | null;
+  done: boolean;
+  deletedAt: string | null;
+  projectId: string;
+};
+
+// Проект вместе с задачами — используем на странице конкретного проекта (ProjectWorkspace)
+export async function getProject(
+  id: string
+): Promise<ApiProject & { tasks: ApiTask[] }> {
+  const res = await fetch(`/api/projects/${id}`);
+  if (!res.ok) throw new Error("Проект не найден");
+  const data = await res.json();
+  return data.project;
+}

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { tasks as allTasks, type Project, type Task } from '@/lib/data'
+import type { Task } from '@/lib/data'
+import { getProject, statusToUi, type ApiProject, type ApiTask } from '@/lib/api-client'
 import { ProgressBar, StatusBadge, Tag } from '../primitives'
 import { ProjectTasksView } from '../project-tasks-view'
 import { KanbanBoard } from '../kanban-board'
@@ -30,14 +31,34 @@ const tabs = [
 type Tab = (typeof tabs)[number]
 
 const weekData = [
-  { label: 'Mon', value: 4 },
-  { label: 'Tue', value: 6 },
-  { label: 'Wed', value: 3 },
-  { label: 'Thu', value: 7 },
-  { label: 'Fri', value: 5 },
-  { label: 'Sat', value: 2 },
-  { label: 'Sun', value: 4 },
+  { label: 'Mon', value: 0 },
+  { label: 'Tue', value: 0 },
+  { label: 'Wed', value: 0 },
+  { label: 'Thu', value: 0 },
+  { label: 'Fri', value: 0 },
+  { label: 'Sat', value: 0 },
+  { label: 'Sun', value: 0 },
 ]
+
+function taskStatusToUi(status: ApiTask['status']): Task['status'] {
+  return status === 'in_progress' ? 'in-progress' : status
+}
+
+function toUiTask(t: ApiTask): Task {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? '',
+    projectId: t.projectId,
+    status: taskStatusToUi(t.status),
+    priority: t.priority,
+    tags: t.tags,
+    deadline: t.deadline,
+    estimate: t.estimate ?? '',
+    created: t.deadline ?? '',
+    done: t.done,
+  }
+}
 
 function Stat({
   icon: Icon,
@@ -69,18 +90,76 @@ function Stat({
 }
 
 export function ProjectWorkspace({
-  project,
+  projectId,
   onBack,
   onToggleTask,
 }: {
-  project: Project
+  projectId: string
   onBack: () => void
   onToggleTask: (id: string) => void
 }) {
   const [tab, setTab] = useState<Tab>('Overview')
-  const projectTasks = allTasks.filter((t) => t.projectId === project.id)
+  const [data, setData] = useState<(ApiProject & { tasks: ApiTask[] }) | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(false)
+    getProject(projectId)
+      .then((p) => {
+        if (!cancelled) setData(p)
+      })
+      .catch(() => {
+        if (!cancelled) setError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
+
+  if (loading) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] items-center justify-center px-4 py-32">
+        <p className="text-sm text-muted-foreground">Loading project…</p>
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col items-center justify-center px-4 py-32 text-center">
+        <p className="text-sm font-medium text-foreground">Project not found</p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={onBack}>
+          <ArrowLeft className="size-4" />
+          Back to Library
+        </Button>
+      </div>
+    )
+  }
+
+  const project = {
+    id: data.id,
+    name: data.name,
+    short: data.short,
+    description: data.description,
+    cover: data.cover ?? '',
+    status: statusToUi(data.status),
+    progress: data.progress,
+    tasksDone: data.tasksDone,
+    tasksTotal: data.tasksTotal,
+    tech: data.tech,
+    accent: data.accent ?? 'var(--primary)',
+    currentTask: data.currentTask ?? '',
+  }
+
+  const projectTasks = data.tasks.filter((t) => !t.deletedAt).map(toUiTask)
   const inProgress = projectTasks.filter((t) => t.status === 'in-progress').length
-  const overdue = 2
+  const overdue = 0
   const priorityTask = projectTasks.find((t) => t.priority === 'high') ?? projectTasks[0]
 
   return (
@@ -207,23 +286,9 @@ export function ProjectWorkspace({
                 <h3 className="text-sm font-semibold text-foreground">
                   Recent activity
                 </h3>
-                <div className="mt-4 space-y-4">
-                  {[
-                    ['Completed', 'Set up CI pipeline', '2h ago'],
-                    ['Moved to Review', 'Fix mobile navigation', '5h ago'],
-                    ['Created', 'Configure RTK Query', 'Yesterday'],
-                    ['Commented on', 'Implement authentication', '2 days ago'],
-                  ].map(([action, item, time], i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
-                      <div className="flex-1 text-sm">
-                        <span className="text-muted-foreground">{action} </span>
-                        <span className="font-medium text-foreground">{item}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{time}</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Activity feed will appear here once task tracking is connected.
+                </p>
               </div>
             </div>
 
@@ -260,6 +325,9 @@ export function ProjectWorkspace({
                   Upcoming deadlines
                 </h3>
                 <div className="mt-3 space-y-3">
+                  {projectTasks.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No tasks yet.</p>
+                  )}
                   {projectTasks
                     .filter((t) => t.deadline)
                     .slice(0, 3)
