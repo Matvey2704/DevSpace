@@ -1,106 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentSession } from "@/lib/auth";
-
-function withProgress(project: {
-  tasks: { done: boolean; deletedAt: Date | null }[];
-  [key: string]: unknown;
-}) {
-  const activeTasks = project.tasks.filter((t) => !t.deletedAt);
-  const tasksTotal = activeTasks.length;
-  const tasksDone = activeTasks.filter((t) => t.done).length;
-  const progress = tasksTotal === 0 ? 0 : Math.round((tasksDone / tasksTotal) * 100);
-  const { tasks: _tasks, ...rest } = project;
-  return { ...rest, tasksTotal, tasksDone, progress };
-}
+import { badRequest, notFound, readJson, requireSession } from "@/lib/api-helpers";
+import { withProgress } from "@/lib/projects-server";
+import { parseProjectBody } from "@/lib/validation";
 
 // Проверяет, что проект существует и принадлежит текущему юзеру.
-// Используем во всех трёх ручках ниже, чтобы никто не мог трогать чужие проекты по id
+// Используем во всех ручках ниже, чтобы никто не мог трогать чужие проекты по id
 async function getOwnedProject(id: string, userId: string) {
   const project = await prisma.project.findUnique({
     where: { id },
-    include: { tasks: true },
+    include: { tasks: { select: { done: true, deletedAt: true } } },
   });
   if (!project || project.userId !== userId) return null;
   return project;
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
-  }
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, { params }: Ctx) {
+  const { session, error } = await requireSession();
+  if (error) return error;
 
   const { id } = await params;
   const project = await getOwnedProject(id, session.userId);
-  if (!project) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
-  }
+  if (!project) return notFound("Проект не найден");
 
-  const activeTasks = project.tasks.filter((t) => !t.deletedAt);
-  const tasksTotal = activeTasks.length;
-  const tasksDone = activeTasks.filter((t) => t.done).length;
-  const progress = tasksTotal === 0 ? 0 : Math.round((tasksDone / tasksTotal) * 100);
-
-  return NextResponse.json({
-    project: { ...project, tasksTotal, tasksDone, progress },
-  });
+  return NextResponse.json({ project: withProgress(project) });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
-  }
+export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const { session, error } = await requireSession();
+  if (error) return error;
 
   const { id } = await params;
   const existing = await getOwnedProject(id, session.userId);
-  if (!existing) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
-  }
+  if (!existing) return notFound("Проект не найден");
 
-  const body = await req.json();
-  const { name, short, description, cover, tech, accent, currentTask, status } =
-    body as {
-      name?: string;
-      short?: string;
-      description?: string;
-      cover?: string;
-      tech?: string[];
-      accent?: string;
-      currentTask?: string;
-      status?: "planning" | "in_progress" | "paused" | "completed";
-    };
+  const body = await readJson(req);
+  if (!body) return badRequest("Некорректное тело запроса");
+
+  const parsed = parseProjectBody(body, "update");
+  if (!parsed.ok) return badRequest(parsed.error);
 
   const updated = await prisma.project.update({
     where: { id },
-    data: { name, short, description, cover, tech, accent, currentTask, status },
+    data: parsed.data,
     include: { tasks: { select: { done: true, deletedAt: true } } },
   });
 
   return NextResponse.json({ project: withProgress(updated) });
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
-  }
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const { session, error } = await requireSession();
+  if (error) return error;
 
   const { id } = await params;
   const existing = await getOwnedProject(id, session.userId);
-  if (!existing) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
-  }
+  if (!existing) return notFound("Проект не найден");
 
   await prisma.project.delete({ where: { id } });
   return NextResponse.json({ ok: true });

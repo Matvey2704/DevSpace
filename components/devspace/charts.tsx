@@ -47,7 +47,7 @@ export function LineChart({
   const range = max - min || 1
   const w = 300
   const h = 120
-  const step = w / (data.length - 1)
+  const step = data.length > 1 ? w / (data.length - 1) : 0
   const points = data.map((v, i) => {
     const x = i * step
     const y = h - ((v - min) / range) * (h - 10) - 5
@@ -139,14 +139,18 @@ export function DonutChart({
   )
 }
 
-export function Heatmap({ weeks = 16 }: { weeks?: number }) {
-  const days = weeks * 7
-  const cells = Array.from({ length: days }, (_, i) => {
-    // deterministic pseudo-random so SSR matches client
-    const v = (Math.sin(i * 12.9898) * 43758.5453) % 1
-    const level = Math.floor(Math.abs(v) * 5)
-    return level
-  })
+/**
+ * Тепловая карта активности. cells — по 7 значений на неделю (Пн..Вс), от старых недель к новым;
+ * null — день в будущем.
+ */
+export function Heatmap({
+  cells,
+  tooltip,
+}: {
+  cells: (number | null)[]
+  tooltip: (count: number) => string
+}) {
+  const max = Math.max(...cells.map((c) => c ?? 0), 0)
   const levels = [
     'bg-muted',
     'bg-primary/25',
@@ -154,15 +158,20 @@ export function Heatmap({ weeks = 16 }: { weeks?: number }) {
     'bg-primary/65',
     'bg-primary',
   ]
+  const levelOf = (n: number) => (n === 0 || max === 0 ? 0 : Math.max(1, Math.ceil((n / max) * 4)))
   return (
     <div className="grid grid-flow-col grid-rows-7 gap-1">
-      {cells.map((lvl, i) => (
-        <span
-          key={i}
-          className={cn('size-3 rounded-[3px]', levels[lvl])}
-          title={`${lvl * 2} contributions`}
-        />
-      ))}
+      {cells.map((n, i) =>
+        n === null ? (
+          <span key={i} className="size-3" />
+        ) : (
+          <span
+            key={i}
+            className={cn('size-3 rounded-[3px]', levels[levelOf(n)])}
+            title={tooltip(n)}
+          />
+        ),
+      )}
     </div>
   )
 }

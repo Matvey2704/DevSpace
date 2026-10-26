@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentSession } from "@/lib/auth";
-
-// Считаем прогресс проекта на лету из его задач,
-// чтобы progress/tasksDone/tasksTotal никогда не рассинхронизировались с реальными задачами
-function withProgress(project: {
-  tasks: { done: boolean; deletedAt: Date | null }[];
-  [key: string]: unknown;
-}) {
-  const activeTasks = project.tasks.filter((t) => !t.deletedAt);
-  const tasksTotal = activeTasks.length;
-  const tasksDone = activeTasks.filter((t) => t.done).length;
-  const progress = tasksTotal === 0 ? 0 : Math.round((tasksDone / tasksTotal) * 100);
-
-  const { tasks: _tasks, ...rest } = project;
-  return { ...rest, tasksTotal, tasksDone, progress };
-}
+import { badRequest, readJson, requireSession } from "@/lib/api-helpers";
+import { withProgress } from "@/lib/projects-server";
+import { parseProjectBody } from "@/lib/validation";
 
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
-  }
+  const { session, error } = await requireSession();
+  if (error) return error;
 
   const projects = await prisma.project.findMany({
     where: { userId: session.userId },
@@ -33,31 +18,19 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
-  }
+  const { session, error } = await requireSession();
+  if (error) return error;
 
-  const body = await req.json();
-  const { name, short, description, cover, tech, accent, currentTask, status } =
-    body as {
-      name?: string;
-      short?: string;
-      description?: string;
-      cover?: string;
-      tech?: string[];
-      accent?: string;
-      currentTask?: string;
-      status?: "planning" | "in_progress" | "paused" | "completed";
-    };
+  const body = await readJson(req);
+  if (!body) return badRequest("Некорректное тело запроса");
 
-  if (!name) {
-    return NextResponse.json({ error: "Имя проекта обязательно" }, { status: 400 });
-  }
+  const parsed = parseProjectBody(body, "create");
+  if (!parsed.ok) return badRequest(parsed.error);
+  const { name, short, description, cover, tech, accent, currentTask, status } = parsed.data;
 
   const project = await prisma.project.create({
     data: {
-      name,
+      name: name!,
       short: short ?? "",
       description: description ?? "",
       cover,

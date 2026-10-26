@@ -1,50 +1,75 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { projects, type Task } from '@/lib/data'
+import { useI18n } from '@/lib/i18n'
+import type { Project, Task } from '@/lib/data'
+import { isOverdue, todayKey } from '@/lib/dates'
+import {
+  applyTaskFilters,
+  emptyFilters,
+  sortTasks,
+  type TaskFilters,
+  type TaskSort,
+} from '@/lib/task-filters'
+import { Button } from '@/components/ui/button'
 import { TaskRow } from '../task-row'
-import { ArrowUpDown, Search, SlidersHorizontal } from 'lucide-react'
+import { FilterMenu } from '../filter-menu'
+import { TaskFilterBar } from '../task-filter-bar'
+import type { TaskActions } from '../task-actions'
+import { Plus, Search } from 'lucide-react'
 
-const groupDefs: { key: string; label: string; match: (t: Task) => boolean }[] = [
-  { key: 'today', label: 'Today', match: (t) => t.deadline === 'Today' && !t.done },
+const sortKeys: TaskSort[] = ['deadline', 'priority', 'newest']
+
+const groupDefs: { key: string; match: (t: Task, today: string) => boolean }[] = [
+  { key: 'overdue', match: (t) => isOverdue(t) },
+  { key: 'today', match: (t, today) => !t.done && t.deadline === today },
   {
     key: 'upcoming',
-    label: 'Upcoming',
-    match: (t) =>
-      !t.done && !!t.deadline && !['Today'].includes(t.deadline) && t.deadline !== null,
+    match: (t, today) => !t.done && !!t.deadline && t.deadline > today,
   },
-  { key: 'overdue', label: 'Overdue', match: (t) => false },
-  { key: 'nodeadline', label: 'No Deadline', match: (t) => !t.done && t.deadline === null },
-  { key: 'completed', label: 'Completed', match: (t) => t.done },
+  { key: 'nodeadline', match: (t) => !t.done && t.deadline === null },
+  { key: 'completed', match: (t) => t.done },
 ]
 
 export function AllTasks({
   tasks,
-  onToggleTask,
+  projects,
+  actions,
 }: {
   tasks: Task[]
-  onToggleTask: (id: string) => void
+  projects: Project[]
+  actions: TaskActions
 }) {
+  const { t } = useI18n()
+  const sortOptions = sortKeys.map((k) => ({ value: k, label: t(`allTasks.sort.${k}`) }))
   const [projectFilter, setProjectFilter] = useState<string>('all')
   const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<TaskFilters>(emptyFilters)
+  const [sort, setSort] = useState<TaskSort>('deadline')
 
-  const filtered = tasks.filter((t) => {
-    const mp = projectFilter === 'all' || t.projectId === projectFilter
-    const mq = t.title.toLowerCase().includes(query.toLowerCase())
-    return mp && mq
-  })
+  const inProject = tasks.filter((t) => projectFilter === 'all' || t.projectId === projectFilter)
+  const filtered = sortTasks(applyTaskFilters(inProject, filters, query), sort)
+  const today = todayKey()
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          All Tasks
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Every task across all your projects in one place.
-        </p>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{t('allTasks.title')}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t('allTasks.subtitle')}
+          </p>
+        </div>
+        <Button
+          onClick={() =>
+            actions.onCreate({ projectId: projectFilter === 'all' ? undefined : projectFilter })
+          }
+          disabled={projects.length === 0}
+        >
+          <Plus className="size-4" />
+          {t('tasks.create')}
+        </Button>
       </div>
 
       {/* Filters */}
@@ -54,27 +79,20 @@ export function AllTasks({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search all tasks…"
+            placeholder={t('allTasks.search')}
             className="h-9 w-full rounded-lg border border-border bg-card pr-3 pl-9 text-sm placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30 focus:outline-none"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <SlidersHorizontal className="size-3.5" />
-            Filters
-          </span>
-          {['Status', 'Priority', 'Deadline', 'Tag'].map((f) => (
-            <button
-              key={f}
-              className="hidden rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground sm:block"
-            >
-              {f}
-            </button>
-          ))}
-          <Button variant="outline" size="sm">
-            <ArrowUpDown className="size-3.5" />
-            Sort
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <TaskFilterBar tasks={inProject} filters={filters} onChange={setFilters} />
+          <FilterMenu
+            label={t('allTasks.sort')}
+            value={sort}
+            options={sortOptions}
+            onChange={(v) => setSort((v as TaskSort) ?? 'deadline')}
+            clearLabel={null}
+            align="right"
+          />
         </div>
       </div>
 
@@ -89,7 +107,7 @@ export function AllTasks({
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          All projects
+          {t('allTasks.allProjects')}
         </button>
         {projects.map((p) => (
           <button
@@ -112,23 +130,41 @@ export function AllTasks({
 
       {/* Groups */}
       <div className="mt-6 space-y-6">
+        {filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 py-16 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {tasks.length === 0 ? t('allTasks.empty.title') : t('allTasks.noMatch.title')}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {tasks.length === 0 ? t('allTasks.empty.hint') : t('allTasks.noMatch.hint')}
+            </p>
+          </div>
+        )}
         {groupDefs.map((g) => {
-          const groupTasks = filtered.filter(g.match)
+          const groupTasks = filtered.filter((task) => g.match(task, today))
           if (groupTasks.length === 0) return null
           return (
             <section key={g.key}>
               <div className="mb-3 flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-foreground">{g.label}</h2>
+                <h2
+                  className={cn(
+                    'text-sm font-semibold text-foreground',
+                    g.key === 'overdue' && 'text-destructive',
+                  )}
+                >
+                  {t(`allTasks.group.${g.key}`)}
+                </h2>
                 <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                   {groupTasks.length}
                 </span>
               </div>
               <div className="space-y-2">
-                {groupTasks.map((t) => (
+                {groupTasks.map((task) => (
                   <TaskRow
-                    key={t.id}
-                    task={t}
-                    onToggle={onToggleTask}
+                    key={task.id}
+                    task={task}
+                    onToggle={actions.onToggle}
+                    onEdit={actions.onEdit}
                     showProject
                   />
                 ))}

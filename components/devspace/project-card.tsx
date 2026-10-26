@@ -2,6 +2,8 @@
 
 import { cn } from '@/lib/utils'
 import type { Project } from '@/lib/data'
+import { formatRelativeTime } from '@/lib/api-client'
+import { useI18n } from '@/lib/i18n'
 import { ProgressBar, StatusBadge, Tag } from './primitives'
 import { Clock } from 'lucide-react'
 
@@ -12,6 +14,7 @@ export function ProjectCard({
   project: Project
   onOpen: (id: string) => void
 }) {
+  const { t } = useI18n()
   return (
     <button
       onClick={() => onOpen(project.id)}
@@ -20,7 +23,7 @@ export function ProjectCard({
       <div className="relative aspect-[16/9] overflow-hidden">
         <img
           src={project.cover || '/placeholder.svg'}
-          alt={`${project.name} cover`}
+          alt={t('card.coverAlt', { name: project.name })}
           className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
@@ -48,7 +51,7 @@ export function ProjectCard({
 
         <div className="mt-auto space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Progress</span>
+            <span className="text-muted-foreground">{t('card.progress')}</span>
             <span className="font-mono font-medium text-foreground">
               {project.progress}%
             </span>
@@ -59,20 +62,20 @@ export function ProjectCard({
               <span className="font-medium text-foreground">
                 {project.tasksDone}
               </span>{' '}
-              / {project.tasksTotal} tasks
+              / {project.tasksTotal} {t('card.tasks')}
             </span>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          {project.tech.map((t) => (
-            <Tag key={t}>{t}</Tag>
+          {project.tech.map((tech) => (
+            <Tag key={tech}>{tech}</Tag>
           ))}
         </div>
 
         <div className="flex items-center gap-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
           <Clock className="size-3.5" />
-          {project.lastActivity}
+          {formatRelativeTime(project.updatedAt, t)}
         </div>
       </div>
     </button>

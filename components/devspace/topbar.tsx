@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/i18n'
 import { Bell, LogOut, Menu, Plus, Search } from 'lucide-react'
 
 type CurrentUser = {
@@ -21,9 +22,10 @@ export function Topbar({
   user?: CurrentUser | null
   onLogout?: () => void
 }) {
+  const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const displayName = user?.name || user?.email || 'Гость'
+  const displayName = user?.name || user?.email || t('topbar.guest')
   const initials = displayName
     .split(' ')
     .map((part) => part[0])
@@ -38,7 +40,7 @@ export function Topbar({
         size="icon"
         className="md:hidden"
         onClick={onMenu}
-        aria-label="Open navigation"
+        aria-label={t('topbar.openNav')}
       >
         <Menu className="size-5" />
       </Button>
@@ -47,7 +49,7 @@ export function Topbar({
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
           type="search"
-          placeholder="Search projects, tasks, notes…"
+          placeholder={t('topbar.search')}
           className="h-9 w-full rounded-lg border border-border bg-card pr-16 pl-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/30 focus:outline-none"
         />
         <kbd className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -58,9 +60,9 @@ export function Topbar({
       <div className="ml-auto flex items-center gap-2">
         <Button size="sm" onClick={onCreateProject}>
           <Plus className="size-4" />
-          <span className="hidden sm:inline">Create Project</span>
+          <span className="hidden sm:inline">{t('topbar.createProject')}</span>
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+        <Button variant="ghost" size="icon" aria-label={t('topbar.notifications')} className="relative">
           <Bell className="size-5" />
           <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background" />
         </Button>
@@ -68,7 +70,7 @@ export function Topbar({
         <div className="relative">
           <button
             className="flex items-center gap-2 rounded-lg py-1 pr-2 pl-1 transition-colors hover:bg-muted"
-            aria-label="Profile menu"
+            aria-label={t('topbar.profileMenu')}
             onClick={() => setMenuOpen((v) => !v)}
           >
             <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
@@ -94,7 +96,7 @@ export function Topbar({
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted"
                 >
                   <LogOut className="size-4" />
-                  Выйти
+                  {t('topbar.logout')}
                 </button>
               </div>
             </>

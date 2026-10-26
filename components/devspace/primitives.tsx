@@ -1,4 +1,7 @@
+'use client'
+
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
 import {
   priorityMeta,
   statusMeta,
@@ -14,6 +17,7 @@ export function StatusBadge({
   status: ProjectStatus
   className?: string
 }) {
+  const { t } = useI18n()
   const meta = statusMeta[status]
   return (
     <span
@@ -24,7 +28,7 @@ export function StatusBadge({
       )}
     >
       <span className={cn('size-1.5 rounded-full', meta.dot)} />
-      {meta.label}
+      {t(`projectStatus.${status}`)}
     </span>
   )
 }
@@ -36,6 +40,7 @@ export function PriorityBadge({
   priority: Priority
   className?: string
 }) {
+  const { t } = useI18n()
   const meta = priorityMeta[priority]
   return (
     <span
@@ -46,7 +51,7 @@ export function PriorityBadge({
       )}
     >
       <span className={cn('size-1.5 rounded-full', meta.bar)} />
-      {meta.label}
+      {t(`priority.${priority}`)}
     </span>
   )
 }

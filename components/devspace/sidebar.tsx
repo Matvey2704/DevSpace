@@ -1,6 +1,9 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import type { Task } from '@/lib/data'
+import { completionStreak } from '@/lib/stats'
+import { useI18n } from '@/lib/i18n'
 import {
   BarChart3,
   Calendar,
@@ -23,15 +26,15 @@ export type NavKey =
   | 'notes'
   | 'settings'
 
-const items: { key: NavKey; label: string; icon: React.ElementType }[] = [
-  { key: 'home', label: 'Home', icon: Home },
-  { key: 'my-day', label: 'My Day', icon: Sun },
-  { key: 'all-tasks', label: 'All Tasks', icon: CheckSquare },
-  { key: 'projects', label: 'Projects', icon: FolderKanban },
-  { key: 'calendar', label: 'Calendar', icon: Calendar },
-  { key: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { key: 'notes', label: 'Notes', icon: NotebookPen },
-  { key: 'settings', label: 'Settings', icon: Settings },
+const items: { key: NavKey; icon: React.ElementType }[] = [
+  { key: 'home', icon: Home },
+  { key: 'my-day', icon: Sun },
+  { key: 'all-tasks', icon: CheckSquare },
+  { key: 'projects', icon: FolderKanban },
+  { key: 'calendar', icon: Calendar },
+  { key: 'analytics', icon: BarChart3 },
+  { key: 'notes', icon: NotebookPen },
+  { key: 'settings', icon: Settings },
 ]
 
 export function Sidebar({
@@ -39,12 +42,17 @@ export function Sidebar({
   onNavigate,
   className,
   onItemClick,
+  tasks = [],
 }: {
+  tasks?: Task[]
   active: NavKey
   onNavigate: (key: NavKey) => void
   className?: string
   onItemClick?: () => void
 }) {
+  const { t } = useI18n()
+  const streak = completionStreak(tasks)
+
   return (
     <aside
       className={cn(
@@ -61,7 +69,7 @@ export function Sidebar({
             DevSpace
           </span>
           <span className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-            workspace
+            {t('nav.workspace')}
           </span>
         </div>
       </div>
@@ -88,7 +96,7 @@ export function Sidebar({
                 className={cn('size-4', isActive && 'text-primary')}
                 strokeWidth={2}
               />
-              {item.label}
+              {t(`nav.${item.key}`)}
             </button>
           )
         })}
@@ -97,11 +105,13 @@ export function Sidebar({
       <div className="border-t border-sidebar-border p-3">
         <div className="rounded-xl border border-sidebar-border bg-card/60 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-foreground">Focus streak</span>
-            <span className="font-mono text-xs text-primary">6 days</span>
+            <span className="text-xs font-medium text-foreground">{t('sidebar.streak')}</span>
+            <span className="font-mono text-xs text-primary">
+              {t('sidebar.days', { count: streak.days })}
+            </span>
           </div>
           <div className="mt-2.5 flex gap-1">
-            {[1, 1, 1, 1, 1, 1, 0].map((v, i) => (
+            {streak.last7.map((v, i) => (
               <span
                 key={i}
                 className={cn(

@@ -71,6 +71,8 @@ model Task {
   deadline    DateTime?
   estimate    String?
   done        Boolean    @default(false)
+  completedAt DateTime?
+  myDayDate   DateTime?
   deletedAt   DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt

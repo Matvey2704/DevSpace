@@ -4,9 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { localizeError, useI18n } from '@/lib/i18n'
+import { LanguageSwitcher } from '@/components/devspace/language-switcher'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +30,7 @@ export default function LoginPage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setError(data.error ?? 'Не удалось войти')
+      setError(data.error ?? 'auth.login.failed')
       return
     }
 
@@ -36,17 +39,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background px-4">
+    <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-background px-4">
+      <LanguageSwitcher />
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8">
-        <h1 className="text-xl font-semibold text-foreground">Войти в DevSpace</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('auth.login.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Продолжай работу над своими проектами.
+          {t('auth.login.subtitle')}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-sm font-medium text-foreground">
-              Email
+              {t('auth.email')}
             </label>
             <input
               id="email"
@@ -60,7 +64,7 @@ export default function LoginPage() {
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="password" className="text-sm font-medium text-foreground">
-              Пароль
+              {t('auth.password')}
             </label>
             <input
               id="password"
@@ -72,17 +76,21 @@ export default function LoginPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <p className="text-sm text-destructive">
+              {error.startsWith('auth.') ? t(error) : localizeError(t, error)}
+            </p>
+          )}
 
           <Button type="submit" disabled={loading} className="mt-2 w-full">
-            {loading ? 'Входим…' : 'Войти'}
+            {loading ? t('auth.login.submitting') : t('auth.login.submit')}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Нет аккаунта?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link href="/register" className="font-medium text-foreground hover:underline">
-            Зарегистрироваться
+            {t('auth.register.submit')}
           </Link>
         </p>
       </div>
